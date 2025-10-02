@@ -1,10 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { BookOpen, Shield, Star, Sparkles, Home, Pause } from 'lucide-react'; // Make sure this is installed: npm install lucide-react
-import Navigation from './Navigation';
+import { Shield, Star, Home, ThumbsUp, MessageSquare, FilePenLine, ArrowLeft, User, ChevronDown } from 'lucide-react'; // Make sure this is installed: npm install lucide-react
+import Navigation from './components/Navigation';
+import WelcomeScreen from './components/WelcomeScreen';
+import Dashboard from './components/Dashboard';
+import StoryView from './components/StoryView';
+import AdventuresList from './components/AdventuresList';
+import AuthForm from './components/AuthForm';
+import InterestSelector from './components/InterestSelector';
+import LoadingScreen from './components/LoadingScreen';
 
 const SafeQuestApp = () => {
-  // Stages: welcome, login, signup, dashboard, interests, loading, story, feedback, end
-  const [stage, setStage] = useState('welcome'); 
+  // Stages: welcome, login, signup, dashboard, interests, loading, story, feedback, end, profile, blog, create-blog, view-blog
+  const [stage, setStage] = useState('welcome');
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(localStorage.getItem('token'));
   const [email, setEmail] = useState('');
@@ -22,6 +29,17 @@ const SafeQuestApp = () => {
   const [userStories, setUserStories] = useState([]);
   const [lastFeedback, setLastFeedback] = useState(null);
 
+  // Blog state
+  const [myBlogPosts, setMyBlogPosts] = useState([]);
+  const [blogPosts, setBlogPosts] = useState([]);
+  const [selectedBlogPost, setSelectedBlogPost] = useState(null);
+  const [blogTitle, setBlogTitle] = useState('');
+  const [blogContent, setBlogContent] = useState('');
+  const [newComment, setNewComment] = useState('');
+
+
+  // UI State
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
   const interests = [
     { id: 'space', name: 'Space Adventure', emoji: '🚀', color: 'from-purple-500 to-blue-500' },
     { id: 'animals', name: 'Animal Friends', emoji: '🐾', color: 'from-green-500 to-emerald-500' },
@@ -42,7 +60,8 @@ const SafeQuestApp = () => {
           if (response.ok) {
             const userData = await response.json();
             setUser(userData);
-            fetchUserStories(token);
+            fetchUserStories(token, false); // Fetch stories in the background
+            fetchUserBlogPosts(token, false); // Fetch blogs for dashboard, but don't switch stage
             setStage('dashboard');
           } else {
             // Token is invalid, clear it
@@ -108,8 +127,7 @@ const SafeQuestApp = () => {
       const userToken = data.token;
       localStorage.setItem('token', data.token);
       setToken(userToken);
-      setUser(data.user);
-      fetchUserStories(userToken);
+      setUser(data.user); // The useEffect will now trigger a data fetch
       setStage('dashboard');
       setEmail('');
       setPassword('');
@@ -140,6 +158,160 @@ const SafeQuestApp = () => {
       alert('Could not load your stories.');
       setStage('dashboard');
     }
+  };
+
+  // Fetch user blog posts
+  const fetchUserBlogPosts = async (userToken, shouldChangeStage = true) => {
+    if (!userToken) return;
+    if (shouldChangeStage) setStage('loading');
+    try {
+      const response = await fetch('/api/blogposts', { headers: { 'Content-Type': 'application/json', 'x-auth-token': userToken } });
+      if (!response.ok) throw new Error('Could not fetch blog posts');
+      const posts = await response.json();
+      setBlogPosts(posts);
+      if (shouldChangeStage) setStage('blog');
+    } catch (err) {
+      console.error(err);
+      alert('Could not load your blog posts.');
+      if (shouldChangeStage) setStage('dashboard');
+    }
+  };
+
+  // Fetch ONLY the current user's blog posts
+  const fetchMyBlogPosts = async () => {
+    if (!token) return;
+    setStage('loading');
+    try {
+      const response = await fetch('/api/blogposts/me', { headers: getAuthHeaders() });
+      if (!response.ok) throw new Error('Could not fetch your blog posts');
+      const posts = await response.json();
+      setMyBlogPosts(posts);
+      setStage('my-blogs');
+    } catch (err) {
+      console.error(err);
+      alert('Could not load your blog posts.');
+      setStage('dashboard');
+    }
+  };
+  // Create new blog post
+  const createBlogPost = async () => {
+    if (!blogTitle.trim() || !blogContent.trim()) {
+      alert('Title and content cannot be empty.');
+      return;
+    }
+    try {
+      const response = await fetch('/api/blogposts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-auth-token': token },
+        body: JSON.stringify({ title: blogTitle, content: blogContent }),
+      });
+      if (!response.ok) throw new Error('Failed to create blog post');
+      const newPost = await response.json();
+      setBlogPosts([newPost, ...blogPosts]);
+      setBlogTitle('');
+      setBlogContent('');
+      setStage('blog');
+    } catch (err) {
+      console.error(err);
+      alert('Failed to create blog post.');
+    }
+  };
+
+  // Update existing blog post
+  const updateBlogPost = async () => {
+    if (!selectedBlogPost) return;
+    if (!blogTitle.trim() || !blogContent.trim()) {
+      alert('Title and content cannot be empty.');
+      return;
+    }
+    try {
+      const response = await fetch(`/api/blogposts/${selectedBlogPost._id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'x-auth-token': token },
+        body: JSON.stringify({ title: blogTitle, content: blogContent }),
+      });
+      if (!response.ok) throw new Error('Failed to update blog post');
+      const updatedPost = await response.json();
+      setBlogPosts(blogPosts.map(post => (post._id === updatedPost._id ? updatedPost : post)));
+      setSelectedBlogPost(null);
+      setBlogTitle('');
+      setBlogContent('');
+      setStage('blog');
+    } catch (err) {
+      console.error(err);
+      alert('Failed to update blog post.');
+    }
+  };
+
+  // Delete blog post
+  const deleteBlogPost = async (postId) => {
+    if (!window.confirm('Are you sure you want to delete this blog post?')) return;
+    try {
+      const response = await fetch(`/api/blogposts/${postId}`, {
+        method: 'DELETE',
+        headers: { 'x-auth-token': token },
+      });
+      if (!response.ok) throw new Error('Failed to delete blog post');
+      setBlogPosts(blogPosts.filter(post => post._id !== postId));
+      setStage('blog');
+    } catch (err) {
+      console.error(err);
+      alert('Failed to delete blog post.');
+    }
+  };
+
+  // Like a blog post
+  const likeBlogPost = async (postId) => {
+    try {
+      const response = await fetch(`/api/blogposts/${postId}/like`, {
+        method: 'PUT',
+        headers: getAuthHeaders(),
+      });
+      if (!response.ok) throw new Error('Failed to like post');
+      const updatedPost = await response.json();
+      setBlogPosts(blogPosts.map(p => p._id === postId ? updatedPost : p));
+      if (selectedBlogPost?._id === postId) {
+        setSelectedBlogPost(updatedPost);
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Failed to like the post.');
+    }
+  };
+
+  // Add a comment to a blog post
+  const addCommentToBlogPost = async (postId) => {
+    if (!newComment.trim()) return;
+    try {
+      const response = await fetch(`/api/blogposts/${postId}/comment`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ text: newComment }),
+      });
+      if (!response.ok) throw new Error('Failed to add comment');
+      const updatedPost = await response.json();
+      setBlogPosts(blogPosts.map(p => p._id === postId ? updatedPost : p));
+      setSelectedBlogPost(updatedPost);
+      setNewComment('');
+    } catch (err) {
+      console.error(err);
+      alert('Failed to add the comment.');
+    }
+  };
+  // Handlers for navigation
+  const goToProfile = () => setStage('profile');
+  const goToBlog = () => fetchUserBlogPosts(token);
+  const goToCreateBlog = () => {
+    setBlogTitle('');
+    setBlogContent('');
+    setSelectedBlogPost(null);
+    setStage('create-blog');
+  };
+  const goToViewBlog = (post) => {
+    setSelectedBlogPost(post);
+    setBlogTitle(post.title);
+    setBlogContent(post.content);
+    setStage('view-blog');
   };
 
   const startNewStory = () => {
@@ -258,274 +430,135 @@ const SafeQuestApp = () => {
     }
   };
 
-  const renderAuthForm = (type) => (
-    <div className="max-w-md mx-auto text-center space-y-6 animate-fade-in">
-      <h2 className="text-4xl font-bold text-gray-800">{type === 'login' ? 'Log In' : 'Sign Up'}</h2>
-      <form onSubmit={(e) => { e.preventDefault(); handleAuth(type); }} className="space-y-4">
-        <input
-          type="email"
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          className="w-full px-4 py-3 rounded-lg border-2 border-gray-300 focus:outline-none focus:border-indigo-500"
-          required
-        />
-        <input
-          type="password"
-          placeholder="Password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          className="w-full px-4 py-3 rounded-lg border-2 border-gray-300 focus:outline-none focus:border-indigo-500"
-          required
-        />
-        {type === 'signup' && (
-          <input
-            type="password"
-            placeholder="Confirm Password"
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-            className="w-full px-4 py-3 rounded-lg border-2 border-gray-300 focus:outline-none focus:border-indigo-500"
-            required
-          />
-        )}
-        {error && <p className="text-red-500">{error}</p>}
-        <button type="submit" className="w-full px-8 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-bold rounded-lg shadow-lg hover:scale-105 transform transition-all">
-          {type === 'login' ? 'Log In' : 'Sign Up'}
-        </button>
-      </form>
-      <button onClick={() => setStage(type === 'login' ? 'signup' : 'login')} className="text-indigo-600 hover:underline">
-        {type === 'login' ? "Don't have an account? Sign Up" : "Already have an account? Log In"}
-      </button>
-    </div>
-  );
-
   const goHome = () => {
     setStage('dashboard');
-    fetchUserStories(token);
+    // No need to fetch here, data is already loaded or will be by useEffect
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-100 via-purple-50 to-pink-100">
-      {/* Header */}
-      <header className="bg-white shadow-lg border-b-4 border-indigo-400">
-        <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <button onClick={token ? goHome : () => setStage('welcome')} className="flex items-center gap-3">
-              <Shield className="w-10 h-10 text-indigo-600" />
-            </button>
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
-              SafeQuest
-            </h1>
-          </div>
-          {token && !['welcome', 'login', 'signup'].includes(stage) && (
-            <div className="flex items-center gap-2 bg-yellow-100 px-4 py-2 rounded-full">
-              <Star className="w-5 h-5 text-yellow-600" />
-              <span className="font-bold text-yellow-800">{score} points</span>
-            </div>
-          )}
-          {token && !['welcome', 'login', 'signup', 'dashboard'].includes(stage) && (
-            <Navigation stage={stage} setStage={setStage} handleLogout={handleLogout} goHome={goHome} />
-          )}
-          {token && ['dashboard'].includes(stage) && (
-            <button onClick={handleLogout} className="px-4 py-2 bg-red-500 text-white font-semibold rounded-lg shadow hover:bg-red-600 transition-colors">
-              Logout
-            </button>
-          )}
-        </div>
-      </header>
-
-      <main className="max-w-6xl mx-auto px-6 py-12">
-        {/* Welcome Screen */}
-        {stage === 'welcome' && (
-          <div className="text-center space-y-8 animate-fade-in">
-            <div className="inline-block p-6 bg-white rounded-full shadow-2xl">
-              <BookOpen className="w-24 h-24 text-indigo-600" />
-            </div>
-            <h2 className="text-5xl font-bold text-gray-800">
-              Welcome to SafeQuest!
-            </h2>
-            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-              Embark on interactive adventures where YOUR choices matter. 
-              Learn to stay safe while having fun in exciting stories tailored just for you!
-            </p>
-            <button
-              onClick={() => setStage('login')}
-              className="px-8 py-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white text-xl font-bold rounded-full shadow-xl hover:shadow-2xl hover:scale-105 transform transition-all duration-200"
-            >
-              Get Started
-            </button>
-          </div>
+    <div className="min-h-screen bg-background text-foreground font-sans">
+      <div className="flex">
+        {token && (
+          <Navigation stage={stage} setStage={setStage} handleLogout={handleLogout} goHome={goHome} goToProfile={goToProfile} goToBlog={goToBlog} />
         )}
 
-        {/* Login Screen */}
-        {stage === 'login' && renderAuthForm('login')}
+        <main className={`flex-grow transition-all duration-300 ${token ? 'ml-20' : 'ml-0'}`}>
+            {/* Header */}
+          <header className="bg-background/80 backdrop-blur-sm border-b border-border sticky top-0 z-20">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+              <div className="flex items-center justify-between h-16">
+                <div className="flex items-center gap-3">
+                  <button onClick={token ? goHome : () => setStage('welcome')} className="flex items-center gap-3 group">
+                    <Shield className="w-8 h-8 text-primary group-hover:text-primary/90 transition-colors" />
+                    <h1 className="text-2xl font-bold text-foreground group-hover:text-foreground/90 transition-colors">
+                      SafeQuest
+                    </h1>
+                  </button>
+                </div>
+                {token && user && (
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2 bg-card text-accent px-3 py-1 rounded-lg shadow-md border border-border shadow-accent/50 shadow-lg">
+                      <Star className="w-4 h-4 text-accent" />
+                      <span className="font-bold text-sm">{score} points</span>
+                    </div>
+                    <div className="relative">
+                      <button onClick={() => setIsProfileOpen(!isProfileOpen)} className="flex items-center gap-2 bg-card px-3 py-1.5 rounded-lg border border-border hover:border-primary">
+                        <User className="w-5 h-5 text-foreground" />
+                        <span className="font-semibold text-sm hidden md:inline">{user.email}</span>
+                        <ChevronDown className={`w-4 h-4 transition-transform ${isProfileOpen ? 'rotate-180' : ''}`} />
+                      </button>
+                      {isProfileOpen && (
+                        <div className="absolute right-0 mt-2 w-48 bg-card rounded-md shadow-lg border border-border z-50">
+                          <a href="#" onClick={(e) => { e.preventDefault(); setStage('profile'); setIsProfileOpen(false); }} className="block px-4 py-2 text-sm text-foreground hover:bg-accent">My Profile</a>
+                          <a href="#" onClick={(e) => { e.preventDefault(); setStage('adventures'); setIsProfileOpen(false); }} className="block px-4 py-2 text-sm text-foreground hover:bg-accent">My Adventures</a>
+                          <a href="#" onClick={(e) => { e.preventDefault(); fetchMyBlogPosts(); setIsProfileOpen(false); }} className="block px-4 py-2 text-sm text-foreground hover:bg-accent">My Blogs</a>
+                          <a href="#" onClick={(e) => { e.preventDefault(); handleLogout(); setIsProfileOpen(false); }} className="block px-4 py-2 text-sm text-destructive hover:bg-destructive/10">Logout</a>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </header>
 
-        {/* Signup Screen */}
-        {stage === 'signup' && renderAuthForm('signup')}
+            <div className="p-6 md:p-10">
+        {/* Welcome Screen */}
+        {stage === 'welcome' && <WelcomeScreen setStage={setStage} />}
+
+        {/* Auth Screens */}
+        {(stage === 'login' || stage === 'signup') && (
+          <AuthForm
+            type={stage}
+            email={email}
+            setEmail={setEmail}
+            password={password}
+            setPassword={setPassword}
+            confirmPassword={confirmPassword}
+            setConfirmPassword={setConfirmPassword}
+            handleAuth={handleAuth}
+            error={error}
+            setStage={setStage}
+          />
+        )}
 
         {/* Dashboard */}
-        {stage === 'dashboard' && (
-          <div className="animate-fade-in space-y-10">
-            <div className="text-center">
-              {user && (
-                <p className="text-2xl text-gray-700 mb-4">
-                  Welcome back, <span className="font-bold text-indigo-600">{user.email}</span>!
-                </p>
-              )}
-              <h2 className="text-4xl font-bold text-gray-800">Your Adventures</h2>
-              <p className="text-lg text-gray-600 mt-2">Start a new quest or continue a previous one.</p>
-            </div>
-            <div className="text-center">
-              <button
-                onClick={startNewStory}
-                className="px-8 py-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white text-xl font-bold rounded-full shadow-xl hover:shadow-2xl hover:scale-105 transform transition-all duration-200"
-              >
-                <span className="flex items-center gap-2">
-                  <Sparkles className="w-6 h-6" />
-                  Start a New Story
-                </span>
-              </button>
-            </div>
-            <div className="space-y-4">
-              <h3 className="text-2xl font-bold text-gray-700">Continue a Story:</h3>
-              {userStories.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {userStories.filter(s => !s.isComplete).map(story => (
-                    <button
-                      key={story._id}
-                      onClick={() => continueStory(story)}
-                      className="p-6 bg-white rounded-2xl shadow-lg hover:shadow-xl transform hover:scale-102 transition-all duration-200 text-left border-2 border-transparent hover:border-indigo-400"
-                    >
-                      <h4 className="text-xl font-bold text-gray-800">{story.initialInterests.join(', ')} Adventure</h4>
-                      <p className="text-gray-600 mt-2">
-                        Score: {story.finalScore} | Progress: {story.fullStory.length} step(s)
-                      </p>
-                      <p className="text-sm text-gray-500 mt-2">
-                        Last played: {new Date(story.createdAt).toLocaleDateString()}
-                      </p>
-                    </button>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-gray-600 bg-white p-6 rounded-xl shadow-md">You have no stories in progress. Start a new one!</p>
-              )}
-            </div>
-          </div>
+        {stage === 'dashboard' && user && (
+          <Dashboard
+            user={user}
+            userStories={userStories}
+            blogPosts={blogPosts}
+            startNewStory={startNewStory}
+            setStage={setStage}
+            goToBlog={goToBlog}
+            goToCreateBlog={goToCreateBlog}
+          />
+        )}
+
+        {/* Adventures List */}
+        {stage === 'adventures' && user && (
+          <AdventuresList
+            userStories={userStories}
+            continueStory={continueStory}
+            currentStoryId={currentStoryId}
+          />
         )}
 
         {/* Interest Selection */}
         {stage === 'interests' && (
-          <div className="space-y-8 animate-fade-in">
-            <div className="text-center space-y-4">
-              <h2 className="text-4xl font-bold text-gray-800">
-                What interests you?
-              </h2>
-              <p className="text-lg text-gray-600">
-                Pick one or more topics you'd love to explore (choose at least one)
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-12">
-              {interests.map(interest => (
-                <button
-                  key={interest.id}
-                  onClick={() => handleInterestToggle(interest.id)}
-                  className={`p-8 rounded-2xl shadow-lg transform transition-all duration-200 hover:scale-105 ${
-                    selectedInterests.includes(interest.id)
-                      ? `bg-gradient-to-br ${interest.color} text-white ring-4 ring-white`
-                      : 'bg-white hover:shadow-xl'
-                  }`}
-                >
-                  <div className="text-6xl mb-4">{interest.emoji}</div>
-                  <h3 className="text-2xl font-bold">{interest.name}</h3>
-                </button>
-              ))}
-            </div>
-
-            <div className="text-center mt-12">
-              <button
-                onClick={startStory}
-                disabled={selectedInterests.length === 0}
-                className="px-12 py-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white text-xl font-bold rounded-full shadow-xl hover:shadow-2xl hover:scale-105 transform transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
-              >
-                <span className="flex items-center gap-2">
-                  <Sparkles className="w-6 h-6" />
-                  Generate My Story
-                </span>
-              </button>
-            </div>
-          </div>
+          <InterestSelector
+            interests={interests}
+            selectedInterests={selectedInterests}
+            handleInterestToggle={handleInterestToggle}
+            startStory={startStory}
+          />
         )}
-
         {/* Loading Screen */}
         {stage === 'loading' && (
-          <div className="text-center space-y-6 animate-fade-in">
-            <div className="inline-block p-6 bg-white rounded-full shadow-2xl">
-              <Sparkles className="w-20 h-20 text-indigo-600 animate-pulse" />
-            </div>
-            <h2 className="text-3xl font-bold text-gray-800">
-              Crafting your adventure...
-            </h2>
-            <p className="text-lg text-gray-600">
-              Our storytellers are hard at work!
-            </p>
-          </div>
+          <LoadingScreen />
         )}
 
         {/* Story Display */}
         {stage === 'story' && (
-          <div className="max-w-3xl mx-auto space-y-8 animate-fade-in">
-            <div className="bg-white rounded-3xl shadow-2xl p-10 border-t-8 border-indigo-500">
-              <div className="prose prose-lg max-w-none">
-                <p className="text-xl leading-relaxed text-gray-800">
-                  {currentStory}
-                </p>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <h3 className="text-2xl font-bold text-gray-800 text-center mb-6">
-                What do you do?
-              </h3>
-              {currentChoices.map((choice, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => handleChoice(choice)}
-                  className="w-full p-6 bg-white rounded-2xl shadow-lg hover:shadow-xl transform hover:scale-102 transition-all duration-200 text-left border-2 border-transparent hover:border-indigo-400"
-                >
-                  <span className="text-lg font-semibold text-gray-800">
-                    {choice.text}
-                  </span>
-                </button>
-              ))}
-               <div className="text-center mt-8">
-                <button 
-                  onClick={goHome}
-                  className="px-6 py-3 bg-amber-500 text-white font-semibold rounded-full shadow-lg hover:bg-amber-600 transition-colors flex items-center gap-2 mx-auto"
-                >
-                  <Pause className="w-5 h-5" /> Let's take a break
-                </button>
-              </div>
-            </div>
-          </div>
+          <StoryView currentStory={currentStory} currentChoices={currentChoices} handleChoice={handleChoice} goHome={goHome} />
         )}
 
         {/* Feedback Screen */}
         {stage === 'feedback' && (
-          <div className="max-w-2xl mx-auto text-center space-y-6 animate-fade-in">
+          <div className="max-w-2xl mx-auto text-center space-y-4 animate-fade-in">
             {lastFeedback && (
               <>
-                <div className="inline-block p-8 bg-white rounded-full shadow-2xl">
+                <div className="inline-block p-6 bg-card rounded-full shadow-lg border border-border">
                   {lastFeedback.safe ? (
-                    <div className="text-8xl">✅</div>
+                    <div className="text-6xl">✅</div>
                   ) : (
-                    <div className="text-8xl">💭</div>
+                    <div className="text-6xl">💭</div>
                   )}
                 </div>
-                <h2 className="text-3xl font-bold text-gray-800">
+                <h2 className="text-2xl font-bold text-foreground">
                   {lastFeedback.text}
                 </h2>
-                <p className="text-lg text-gray-600">
+                <p className="text-md text-muted-foreground">
                   Loading next part of your adventure...
                 </p>
               </>
@@ -535,18 +568,225 @@ const SafeQuestApp = () => {
 
         {/* End of Story Screen */}
         {stage === 'end' && (
-          <div className="text-center space-y-8 animate-fade-in">
-            <div className="inline-block p-6 bg-white rounded-full shadow-2xl">
-                <div className="text-8xl">✅</div>
+          <div className="text-center space-y-6 animate-fade-in max-w-xl mx-auto">
+            <div className="inline-block p-5 bg-card rounded-full shadow-lg border border-border">
+                <div className="text-6xl">✅</div>
             </div>
-            <h2 className="text-4xl font-bold text-gray-800">The End!</h2>
-            <p className="text-xl text-gray-600">You've reached the end of this adventure. Your final score is {score}.</p>
-            <button onClick={goHome} className="px-8 py-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white text-xl font-bold rounded-full shadow-xl hover:shadow-2xl hover:scale-105 transform transition-all duration-200" >
+            <h2 className="text-3xl font-bold text-foreground">The End!</h2>
+            <p className="text-lg text-muted-foreground">You've reached the end of this adventure. Your final score is {score}.</p>
+            <button onClick={goHome} className="px-6 py-3 bg-primary text-primary-foreground text-lg font-bold rounded-full shadow-lg hover:bg-primary/90 hover:scale-105 transform transition-all duration-200" >
               <span className="flex items-center gap-2"><Home /> Back to Dashboard</span>
             </button>
           </div>
         )}
+
+        {/* Profile Page */}
+        {stage === 'profile' && user && (
+          <div className="max-w-4xl mx-auto animate-fade-in">
+            <div className="bg-card rounded-xl shadow-lg p-8 border border-border">
+              <div className="flex flex-col md:flex-row items-center gap-8">
+                <div className="w-32 h-32 bg-background rounded-full flex items-center justify-center">
+                  <span className="text-5xl font-bold text-primary">{user.email.charAt(0).toUpperCase()}</span>
+                </div>
+                <div className="text-center md:text-left">
+                  <h2 className="text-3xl font-bold text-foreground">{user.email}</h2>
+                  <div className="flex gap-6 mt-4 justify-center md:justify-start">
+                    <div><span className="font-bold text-xl">{userStories.length}</span> <span className="text-muted-foreground">Adventures</span></div>
+                    <div><span className="font-bold text-xl">{blogPosts.length}</span> <span className="text-muted-foreground">Blogs</span></div>
+                    <div><span className="font-bold text-xl">{userStories.reduce((acc, story) => acc + (story.finalScore || 0), 0)}</span> <span className="text-muted-foreground">Total Score</span></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="mt-8">
+              <button
+                onClick={() => setStage('dashboard')}
+                className="px-5 py-2 bg-primary text-primary-foreground font-semibold rounded-md shadow-sm hover:bg-primary/90 transition-colors"
+              >
+                Back to Dashboard
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Blog List Page */}
+        {stage === 'blog' && (
+          <div className="max-w-7xl mx-auto space-y-8 animate-fade-in">
+            <div className="flex justify-between items-center">
+              <h2 className="text-3xl font-bold text-foreground">Community Blogs</h2>
+              <button
+                onClick={goToCreateBlog}
+                className="px-5 py-2 bg-primary text-primary-foreground font-semibold rounded-md shadow-sm hover:bg-primary/90 transition-colors flex items-center gap-2"
+              >
+                <FilePenLine className="w-4 h-4" />
+                Create New Post
+              </button>
+            </div>
+            {blogPosts.length > 0 ? (
+              <div className="space-y-6">
+                {blogPosts.map(post => (
+                  <div key={post._id} className="bg-card rounded-lg shadow-lg p-6 border border-border flex flex-col justify-between">
+                    <div>
+                      <h3 className="text-xl font-bold text-foreground mb-2 line-clamp-2">{post.title}</h3>
+                      <p className="text-muted-foreground mb-4 line-clamp-3">{post.content}</p>
+                    </div>
+                    <div className="flex justify-between items-center mt-4">
+                      <p className="text-xs text-muted-foreground">{new Date(post.createdAt).toLocaleDateString()}</p>
+                      <button onClick={() => goToViewBlog(post)} className="text-primary hover:underline text-sm font-semibold">View Blog</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center text-muted-foreground bg-card p-6 rounded-lg border border-border">No blog posts have been written yet. Be the first!</div>
+            )}
+          </div>
+        )}
+
+        {/* My Blogs Page */}
+        {stage === 'my-blogs' && (
+          <div className="max-w-7xl mx-auto space-y-8 animate-fade-in">
+            <div className="flex justify-between items-center">
+              <h2 className="text-3xl font-bold text-foreground">My Blogs</h2>
+              <button onClick={goToCreateBlog} className="px-5 py-2 bg-primary text-primary-foreground font-semibold rounded-md shadow-sm hover:bg-primary/90 transition-colors flex items-center gap-2">
+                <FilePenLine className="w-4 h-4" />
+                Create New Post
+              </button>
+            </div>
+            {myBlogPosts.length > 0 ? (
+              <div className="space-y-6">
+                {myBlogPosts.map(post => (
+                  <div key={post._id} className="bg-card rounded-lg shadow-lg p-6 border border-border flex flex-col justify-between">
+                    <div>
+                      <h3 className="text-xl font-bold text-foreground mb-2 line-clamp-2">{post.title}</h3>
+                      <p className="text-muted-foreground mb-4 line-clamp-3">{post.content}</p>
+                    </div>
+                    <div className="flex justify-between items-center mt-4">
+                      <p className="text-xs text-muted-foreground">{new Date(post.createdAt).toLocaleDateString()}</p>
+                      <button onClick={() => goToViewBlog(post)} className="text-primary hover:underline text-sm font-semibold">View Blog</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center text-muted-foreground bg-card p-6 rounded-lg border border-border">You haven't written any blogs yet.</div>
+            )}
+          </div>
+        )}
+
+        {/* Create Blog Post Page */}
+        {stage === 'create-blog' && (
+          <div className="max-w-3xl mx-auto space-y-6 animate-fade-in">
+            <h2 className="text-3xl font-bold text-foreground mb-4">{selectedBlogPost ? 'Edit Blog Post' : 'Create New Blog Post'}</h2>
+            <div className="bg-card rounded-xl shadow-lg p-6 border border-border">
+              <div className="space-y-4">
+                <input
+                  type="text"
+                  placeholder="Post Title"
+                  value={blogTitle}
+                  onChange={(e) => setBlogTitle(e.target.value)}
+                  className="w-full px-4 py-2 rounded-md bg-input border-border focus:outline-none focus:ring-2 focus:ring-ring text-foreground"
+                />
+                <textarea
+                  placeholder="Post Content"
+                  value={blogContent}
+                  onChange={(e) => setBlogContent(e.target.value)}
+                  rows={10}
+                  className="w-full px-4 py-2 rounded-md bg-input border-border focus:outline-none focus:ring-2 focus:ring-ring text-foreground"
+                />
+                <div className="flex gap-4">
+                  <button
+                    onClick={selectedBlogPost ? updateBlogPost : createBlogPost}
+                    className="px-5 py-2 bg-primary text-primary-foreground font-semibold rounded-md shadow-sm hover:bg-primary/90 transition-colors"
+                  >
+                    {selectedBlogPost ? 'Update Post' : 'Create Post'}
+                  </button>
+                  <button
+                    onClick={() => setStage('blog')}
+                    className="px-5 py-2 bg-secondary text-secondary-foreground font-semibold rounded-md shadow-sm hover:bg-secondary/80 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* View Blog Post Page */}
+        {stage === 'view-blog' && selectedBlogPost && (
+          <div className="max-w-4xl mx-auto space-y-6 animate-fade-in">
+            <button
+              onClick={() => setStage('blog')}
+              className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors font-semibold"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Back to Blog
+            </button>
+            <div className="bg-card rounded-xl shadow-lg p-6 md:p-8 border border-border">
+              <h2 className="text-4xl font-bold text-foreground mb-2">{selectedBlogPost.title}</h2>
+              <p className="text-sm text-muted-foreground mb-6">
+                Created: {new Date(selectedBlogPost.createdAt).toLocaleDateString()}
+              </p>
+              <div className="prose prose-lg max-w-none prose-invert">
+                <p className="text-lg leading-relaxed text-foreground whitespace-pre-wrap">{selectedBlogPost.content}</p>
+              </div>
+              <div className="flex items-center gap-6 mt-8 pt-6 border-t border-border">
+                <button onClick={() => likeBlogPost(selectedBlogPost._id)} className="flex items-center gap-2 text-muted-foreground hover:text-primary transition-colors">
+                  <ThumbsUp className="w-5 h-5" />
+                  <span className="font-semibold">{selectedBlogPost.likes?.length || 0}</span>
+                </button>
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <MessageSquare className="w-5 h-5" />
+                  <span className="font-semibold">{selectedBlogPost.comments?.length || 0}</span>
+                </div>
+              </div>
+              {user && user._id === selectedBlogPost.userId && (
+                <div className="flex gap-4 mt-8">
+                  <button
+                    onClick={() => setStage('create-blog')}
+                    className="px-5 py-2 bg-yellow-500/80 text-white font-semibold rounded-md shadow-sm hover:bg-yellow-600 transition-colors"
+                  >
+                    Edit Post
+                  </button>
+                  <button
+                    onClick={() => deleteBlogPost(selectedBlogPost._id)}
+                    className="px-5 py-2 bg-destructive text-destructive-foreground font-semibold rounded-md shadow-sm hover:bg-destructive/90 transition-colors"
+                  >
+                    Delete Post
+                  </button>
+                </div>
+              )}
+            </div>
+            {/* Comments Section */}
+            <div className="bg-card rounded-xl shadow-lg p-6 border border-border">
+              <h3 className="text-xl font-bold text-foreground mb-4">Comments</h3>
+              <div className="space-y-4">
+                <textarea
+                  placeholder="Add a comment..."
+                  value={newComment}
+                  onChange={(e) => setNewComment(e.target.value)}
+                  rows={3}
+                  className="w-full px-4 py-2 rounded-md bg-input border-border focus:outline-none focus:ring-2 focus:ring-ring text-foreground"
+                />
+                <button onClick={() => addCommentToBlogPost(selectedBlogPost._id)} className="px-4 py-1.5 text-sm bg-primary text-primary-foreground font-semibold rounded-md shadow-sm hover:bg-primary/90 transition-colors">
+                  Post Comment
+                </button>
+              </div>
+              <div className="mt-6 space-y-4">
+                {selectedBlogPost.comments?.map((comment, index) => (
+                  <div key={index} className="bg-accent p-3 rounded-lg border border-border">
+                    <p className="text-sm text-foreground">{comment.text}</p>
+                    <p className="text-xs text-gray-500 mt-1">- {comment.userEmail} on {new Date(comment.date).toLocaleDateString()}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+        </div>
       </main>
+      </div>
     </div>
   );
 };

@@ -56,6 +56,26 @@ const storySchema = new mongoose.Schema({
 
 const Story = mongoose.model('Story', storySchema);
 
+// --- Comment Sub-Schema ---
+const commentSchema = new mongoose.Schema({
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  userEmail: { type: String, required: true },
+  text: { type: String, required: true },
+  date: { type: Date, default: Date.now }
+});
+
+// --- BlogPost Model ---
+const blogPostSchema = new mongoose.Schema({
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  title: { type: String, required: true },
+  content: { type: String, required: true },
+  createdAt: { type: Date, default: Date.now },
+  likes: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+  comments: [commentSchema]
+});
+
+const BlogPost = mongoose.model('BlogPost', blogPostSchema);
+
 app.get('/', (req, res) => {
   res.send('SafeQuest Backend is running!');
 });
@@ -159,10 +179,10 @@ app.post('/api/generate-story', async (req, res) => {
     if (decisions && decisions.length > 0) {
       // This is a continuing story
       const previousContext = decisions.map(d => `Story: ${d.story}\nChoice: ${d.decision.text}`).join('\n\n');
-      prompt = `Continue this safe, age-appropriate story for a 10-14 year old interested in ${interests.join(', ')}. Here's what happened so far:\n${previousContext}\n\nNow, continue the story. It should end with a new clear safety-related decision point with exactly 3 choices. Format the output as a JSON object with "story" and "choices" properties. The "choices" property should be an array of objects, each with "text", "safe" (boolean), and "points" (number, where safe choices are positive, unsafe are negative).`;
+      prompt = `Continue this safe, age-appropriate adventure for a 10-14 year old interested in ${interests.join(', ')}. Here's what happened so far:\n${previousContext}\n\nNow, continue the adventure. It should end with a new clear safety-related decision point with exactly 3 choices. Format the output as a JSON object with "story" and "choices" properties. The "choices" property should be an array of objects, each with "text", "safe" (boolean), and "points" (number, where safe choices are positive, unsafe are negative).`;
     } else {
       // This is a new story
-      prompt = `Create the beginning of a safe, age-appropriate story for a 10-14 year old interested in ${interests.join(', ')}. The story should end with a clear safety-related decision point with exactly 3 choices. Format the output as a JSON object with "story" and "choices" properties. The "choices" property should be an array of objects, each with "text", "safe" (boolean), and "points" (number, where safe choices are positive, unsafe are negative).`;
+      prompt = `Create the beginning of a safe, age-appropriate adventure for a 10-14 year old interested in ${interests.join(', ')}. The adventure should end with a clear safety-related decision point with exactly 3 choices. Format the output as a JSON object with "story" and "choices" properties. The "choices" property should be an array of objects, each with "text", "safe" (boolean), and "points" (number, where safe choices are positive, unsafe are negative).`;
     }
   
     const completion = await openai.chat.completions.create({
@@ -231,4 +251,158 @@ app.put('/api/stories/:id', auth, async (req, res) => {
 
 app.listen(port, () => {
     console.log(`Server is running on port: ${port}`);
+});
+
+// --- BlogPost Routes ---
+
+// Get all blog posts for the logged-in user
+app.get('/api/blogposts', auth, async (req, res) => {
+  try {
+    // Use aggregation to sort by number of likes
+    const posts = await BlogPost.aggregate([
+      {
+        $project: {
+          title: 1,
+          content: 1,
+          userId: 1,
+          createdAt: 1,
+          likes: 1,
+          comments: 1,
+          likesCount: { $size: { $ifNull: ["$likes", []] } } // Add a field for the number of likes, handling null/missing arrays
+        }
+      },
+      { $sort: { likesCount: -1 } } // Sort by the new field in descending order
+    ]);
+    res.json(posts); // This now returns all posts, sorted by popularity
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch blog posts.' });
+  }
+});
+
+// Get blog posts for ONLY the logged-in user
+app.get('/api/blogposts/me', auth, async (req, res) => {
+  try {
+    const posts = await BlogPost.find({ userId: req.user.id }).sort({ createdAt: -1 });
+    res.json(posts);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch user blog posts.' });
+  }
+});
+
+// Create a new blog post
+app.post('/api/blogposts', auth, async (req, res) => {
+  try {
+    const { title, content } = req.body;
+    if (!title || !content) {
+      return res.status(400).json({ msg: 'Title and content are required.' });
+    }
+    const newPost = new BlogPost({
+      userId: req.user.id,
+      title,
+      content
+    });
+    const savedPost = await newPost.save();
+    res.status(201).json(savedPost);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to create blog post.' });
+  }
+});
+
+// Get a single blog post by ID
+app.get('/api/blogposts/:id', auth, async (req, res) => {
+  try {
+    const post = await BlogPost.findById(req.params.id);
+    if (!post) {
+      return res.status(404).json({ msg: 'Blog post not found or user not authorized.' });
+    }
+    res.json(post);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch blog post.' });
+  }
+});
+
+// Update a blog post by ID
+app.put('/api/blogposts/:id', auth, async (req, res) => {
+  try {
+    const { title, content } = req.body;
+    const post = await BlogPost.findOne({ _id: req.params.id, userId: req.user.id });
+    if (!post) {
+      return res.status(404).json({ msg: 'Blog post not found or user not authorized.' });
+    }
+    if (title) post.title = title;
+    if (content) post.content = content;
+    const updatedPost = await post.save();
+    res.json(updatedPost);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to update blog post.' });
+  }
+});
+
+// Delete a blog post by ID
+app.delete('/api/blogposts/:id', auth, async (req, res) => {
+  try {
+    const post = await BlogPost.findOneAndDelete({ _id: req.params.id, userId: req.user.id });
+    if (!post) {
+      return res.status(404).json({ msg: 'Blog post not found or user not authorized.' });
+    }
+    res.json({ msg: 'Blog post deleted successfully.' });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to delete blog post.' });
+  }
+});
+
+// @route   PUT api/blogposts/:id/like
+// @desc    Like or unlike a blog post
+// @access  Private
+app.put('/api/blogposts/:id/like', auth, async (req, res) => {
+  try {
+    const post = await BlogPost.findById(req.params.id);
+    if (!post) {
+      return res.status(404).json({ msg: 'Blog post not found.' });
+    }
+
+    // Check if the post has already been liked by this user
+    if (post.likes.some(like => like.equals(req.user.id))) {
+      // If yes, remove the like (unlike)
+      post.likes = post.likes.filter(
+        like => !like.equals(req.user.id)
+      );
+    } else {
+      // If no, add the like
+      post.likes.unshift(req.user.id);
+    }
+
+    await post.save();
+    res.json(post);
+  } catch (error) {
+    console.error(error.message);
+    res.status(500).send('Server Error');
+  }
+});
+
+// @route   POST api/blogposts/:id/comment
+// @desc    Add a comment to a blog post
+// @access  Private
+app.post('/api/blogposts/:id/comment', auth, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id).select('email');
+    const post = await BlogPost.findById(req.params.id);
+
+    if (!post) {
+      return res.status(404).json({ msg: 'Blog post not found.' });
+    }
+
+    const newComment = {
+      text: req.body.text,
+      userId: req.user.id,
+      userEmail: user.email
+    };
+
+    post.comments.unshift(newComment);
+    await post.save();
+    res.json(post);
+  } catch (error) {
+    console.error(error.message);
+    res.status(500).send('Server Error');
+  }
 });
