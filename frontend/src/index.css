@@ -1,0 +1,73 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 216 58% 10%; /* #0A1628 */
+    --foreground: 210 17% 95%; /* #E2E8F0 */
+
+    --card: 215 39% 17%; /* #1E293B */
+    --card-foreground: 210 17% 95%;
+ 
+    --popover: 240 10% 3.9%;
+    --popover-foreground: 0 0% 98%;
+ 
+    --primary: 190 100% 50%; /* #00D9FF */
+    --primary-foreground: 216 58% 10%;
+ 
+    --secondary: 213 66% 50%; /* #2D7DD2 */
+    --secondary-foreground: 0 0% 98%;
+ 
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 215 14% 34%; /* #475569 */
+ 
+    --accent: 279 74% 61%; /* #9D4EDD - Neon Purple */
+    --accent-foreground: 210 17% 95%;
+ 
+    --destructive: 349 89% 60%; /* #F43F5E - Red */
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 215 14% 34%; /* #475569 - Steel Gray */
+    --input: 240 3.7% 15.9%;
+    --ring: 213 66% 50%; /* #2D7DD2 */
+    --gradient-blue-start: 220 80% 8%; /* Deep blue for gradient start */
+    --gradient-purple-end: 260 70% 8%; /* Deep purple for gradient end */
+ 
+    --radius: 0.5rem;
+  }
+ 
+  .dark {
+    /* The dark theme is the same as the root for now */
+    --background: 216 58% 10%;
+    --foreground: 210 17% 95%;
+    --card: 215 39% 17%;
+    --card-foreground: 210 17% 95%;
+    --popover: 240 10% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 190 100% 50%;
+    --primary-foreground: 216 58% 10%;
+    --secondary: 213 66% 50%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 215 14% 34%;
+    --accent: 279 74% 61%;
+    --accent-foreground: 210 17% 95%;
+    --destructive: 349 89% 60%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 215 14% 34%;
+    --input: 240 3.7% 15.9%;
+    --ring: 213 66% 50%;
+    --gradient-blue-start: 220 80% 8%;
+    --gradient-purple-end: 260 70% 8%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
