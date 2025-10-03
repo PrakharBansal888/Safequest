@@ -186,7 +186,7 @@ app.post('/api/generate-story', async (req, res) => {
     }
   
     const completion = await openai.chat.completions.create({
-      model: "llama-3.3-70b-versatile", // Corrected model name for Groq
+      model: "llama-3.3-70b-versatile", // Using Groq's LLaMA model for story generation
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" } // Ensures the output is valid JSON
     });
@@ -215,7 +215,7 @@ app.post('/api/chat', auth, async (req, res) => {
     };
 
     const completion = await openai.chat.completions.create({
-      model: "llama-3.3-70b-versatile", // Using Groq's Mixtral model for better responses
+      model: "llama-3.3-70b-versatile", // Using Groq's LLaMA model for chat responses
       messages: [systemMessage, ...messages],
     });
 
@@ -225,7 +225,6 @@ app.post('/api/chat', auth, async (req, res) => {
     res.status(500).json({ error: 'Failed to get a response from the chatbot. Please try again.' });
   }
 });
-
 // --- Save Story Route ---
 app.post('/api/stories', auth, async (req, res) => {
   try {

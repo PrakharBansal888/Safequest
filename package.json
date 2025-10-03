@@ -17,7 +17,13 @@
   ],
   "author": "",
   "license": "ISC",
+<<<<<<< HEAD
   "devDependencies": {
     "concurrently": "^9.2.1"
   }
 }
+=======
+  "devDependencies": {}
+}
+
+>>>>>>> 623806a950eddc5f0e8b3847f285f122a3838add

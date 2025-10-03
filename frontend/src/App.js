@@ -43,7 +43,6 @@ const SafeQuestApp = () => {
   const [chatInput, setChatInput] = useState('');
   const [isChatLoading, setIsChatLoading] = useState(false);
 
-
   // UI State
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const interests = [
