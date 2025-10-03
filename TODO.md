@@ -1,23 +1,18 @@
-# SafeQuest Pending Tasks Implementation
+# Project TODOs
 
-## Backend Changes
-- [x] Add BlogPost model in server.js
-- [x] Add CRUD routes for blogposts in server.js (GET /api/blogposts, POST, GET/:id, PUT/:id, DELETE/:id)
+## Core Features
 
-## Frontend Changes
-- [x] Update tailwind.config.js with dark blue color palette
-- [x] Update Navigation.js to add 'Blog' nav item
-- [x] Update App.js: Add new stages ('profile', 'blog', 'create-blog', 'view-blog')
-- [x] Update App.js: Add state for blog posts and selected post
-- [x] Implement profile page rendering in App.js
-- [x] Implement blog list page rendering in App.js
-- [x] Implement create-blog page rendering in App.js
-- [x] Implement view-blog page rendering in App.js
-- [x] Update theme classes in App.js (gradients, borders, buttons)
-- [x] Update theme classes in Navigation.js (active/hover colors)
+- Make profiles public 
+    - Control over view - Parental
 
-## Testing
-- [ ] Test backend blog routes
-- [ ] Test frontend blog features and profile page
-- [ ] Verify theme changes
-- [ ] Ensure integration with existing auth and stories
+- Funding and investment
+    - Making own AI Model
+
+- Adding voice notes everywhere (including sound effects)
+
+- Animate the adventures
+
+## Profile Page
+- Add placeholders containing the values he learnt in his adventures
+
+- Make the chatbot handle requests that are happening real time on the screen
