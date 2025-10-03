@@ -54,6 +54,14 @@ const SafeQuestApp = () => {
     { id: 'nature', name: 'Nature Explorer', emoji: '🌿', color: 'from-green-600 to-teal-500' },
   ];
 
+  // Achievement and stats state
+  const [userStats, setUserStats] = useState({
+    storiesCompleted: 0,
+    safeChoicesStreak: 0,
+    perfectStories: 0,
+    achievements: []
+  });
+
   useEffect(() => {
     // Check if a token exists and try to validate it
     const loadUser = async () => {
@@ -111,6 +119,7 @@ const SafeQuestApp = () => {
       return null;
     }
   };
+
 
   const handleAuth = async (authType) => {
     setError('');
@@ -446,12 +455,33 @@ const SafeQuestApp = () => {
     const newScore = score + choice.points;
     setScore(newScore);
     setLastFeedback({ safe: choice.safe, text: lastProgress.feedback });
-    setStage('feedback');
     
-    // Save progress after making a choice
+    // Update stats if the story is complete
+    if (currentProgress.length === 5) { // Assuming 5 choices complete a story
+      const safeChoices = currentProgress.filter(p => p.decision?.safe).length;
+      try {
+        const response = await fetch('/api/achievements/update-stats', {
+          method: 'POST',
+          headers: getAuthHeaders(),
+          body: JSON.stringify({
+            safeChoices,
+            totalChoices: currentProgress.length,
+            isComplete: true
+          })
+        });
+        if (response.ok) {
+          const updatedStats = await response.json();
+          setUserStats(updatedStats);
+        }
+      } catch (error) {
+        console.error('Error updating achievements:', error);
+      }
+    }
+
+    setStage('feedback');
     await saveStory(currentProgress, newScore);
     
-    // Wait for feedback, then generate the next part of the story
+    // Wait for feedback, then continue
     await new Promise(resolve => setTimeout(resolve, 3000));
     
     const data = await generateStory(selectedInterests, currentProgress);
@@ -463,8 +493,7 @@ const SafeQuestApp = () => {
       await saveStory(newProgress, newScore);
       setStage('story');
     } else {
-      // Story might have ended or failed to generate
-      await saveStory(currentProgress, newScore, true); // Mark as complete
+      await saveStory(currentProgress, newScore, true);
       setStage('end');
     }
   };
@@ -873,7 +902,11 @@ const SafeQuestApp = () => {
                   className="flex-grow bg-input px-3 py-1.5 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                   disabled={isChatLoading}
                 />
-                <button type="submit" className="bg-primary p-2 rounded-full text-primary-foreground disabled:bg-muted" disabled={isChatLoading || !chatInput.trim()}>
+                <button 
+                  type="submit" 
+                  className="bg-primary p-2 rounded-full text-primary-foreground disabled:bg-muted" 
+                  disabled={isChatLoading || !chatInput.trim()}
+                >
                   <Send className="w-4 h-4" />
                 </button>
               </form>

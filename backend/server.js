@@ -28,9 +28,19 @@ connection.once('open', () => {
 });
 
 // --- User Model ---
+const userStatsSchema = new mongoose.Schema({
+  storiesCompleted: { type: Number, default: 0 },
+  safeChoicesStreak: { type: Number, default: 0 },
+  perfectStories: { type: Number, default: 0 },
+  achievements: [String],
+  lastLoginDate: { type: Date, default: Date.now },
+  loginStreak: { type: Number, default: 0 }
+});
+
 const userSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true, trim: true, lowercase: true },
   password: { type: String, required: true },
+  stats: { type: userStatsSchema, default: () => ({}) }
 });
 
 const User = mongoose.model('User', userSchema);
@@ -178,13 +188,13 @@ app.post('/api/generate-story', async (req, res) => {
     let prompt;
     if (decisions && decisions.length > 0) {
       // This is a continuing story
-      const previousContext = decisions.map(d => `Story: ${d.story}\nChoice: ${d.decision.text}`).join('\n\n');
+      const previousContext = decisions.map(d => `Story: ${d.story}\nMy Choice: ${d.decision.text}`).join('\n\n');
       prompt = `Continue this safe, age-appropriate adventure for a 10-14 year old interested in ${interests.join(', ')}. Here's what happened so far:\n${previousContext}\n\nNow, continue the adventure. It should end with a new clear safety-related decision point with exactly 3 choices. Format the output as a JSON object with "story" and "choices" properties. The "choices" property should be an array of objects, each with "text", "safe" (boolean), and "points" (number, where safe choices are positive, unsafe are negative).`;
     } else {
       // This is a new story
       prompt = `Create the beginning of a safe, age-appropriate adventure for a 10-14 year old interested in ${interests.join(', ')}. The adventure should end with a clear safety-related decision point with exactly 3 choices. Format the output as a JSON object with "story" and "choices" properties. The "choices" property should be an array of objects, each with "text", "safe" (boolean), and "points" (number, where safe choices are positive, unsafe are negative).`;
     }
-  
+
     const completion = await openai.chat.completions.create({
       model: "llama-3.3-70b-versatile", // Using Groq's LLaMA model for story generation
       messages: [{ role: "user", content: prompt }],
@@ -430,5 +440,68 @@ app.post('/api/blogposts/:id/comment', auth, async (req, res) => {
   } catch (error) {
     console.error(error.message);
     res.status(500).send('Server Error');
+  }
+});
+
+// --- Achievement Routes ---
+
+// Get user stats and achievements
+app.get('/api/achievements/stats', auth, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    res.json(user.stats);
+  } catch (error) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Update user stats after story completion
+app.post('/api/achievements/update-stats', auth, async (req, res) => {
+  try {
+    const { safeChoices, totalChoices, isComplete } = req.body;
+    const user = await User.findById(req.user.id);
+
+    // Update stats
+    if (isComplete) {
+      user.stats.storiesCompleted += 1;
+    }
+
+    if (safeChoices === totalChoices) {
+      user.stats.perfectStories += 1;
+      user.stats.safeChoicesStreak += 1;
+    } else {
+      user.stats.safeChoicesStreak = 0;
+    }
+
+    // Check for new achievements
+    const achievements = new Set(user.stats.achievements || []);
+
+    // First story achievement
+    if (user.stats.storiesCompleted === 1) {
+      achievements.add('FIRST_STORY');
+    }
+
+    // Safety streak achievement
+    if (user.stats.safeChoicesStreak >= 5) {
+      achievements.add('SAFETY_STREAK');
+    }
+
+    // Perfect story achievement
+    if (user.stats.perfectStories >= 1) {
+      achievements.add('PERFECT_SCORE');
+    }
+
+    // Story master achievement
+    if (user.stats.storiesCompleted >= 5) {
+      achievements.add('STORY_MASTER');
+    }
+
+    user.stats.achievements = [...achievements];
+    await user.save();
+
+    res.json(user.stats);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Server error' });
   }
 });
