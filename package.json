@@ -1,0 +1,28 @@
+{
+  "name": "safequest",
+  "version": "1.0.0",
+  "description": "A MERN app for interactive safety stories.",
+  "main": "index.js",
+  "private": true,
+  "scripts": {
+    "start": "concurrently \"npm run start --prefix backend\" \"npm run start --prefix frontend\"",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "mern",
+    "react",
+    "express",
+    "mongodb",
+    "nodejs"
+  ],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  },
+  "dependencies": {
+    "@react-spring/web": "^10.0.3",
+    "framer-motion": "^12.23.22",
+    "react-use-measure": "^2.1.7"
+  }
+}
