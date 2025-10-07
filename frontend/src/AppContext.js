@@ -54,7 +54,7 @@ export const AppProvider = ({ children }) => {
       emoji: '🚀', 
       color: 'from-purple-500 to-blue-500',
       description: 'Explore the cosmos with rockets, planets, and stellar adventures',
-      videoUrl: '/assets/videos/space-adventure.mp4',
+      videoUrl: null, // Video disabled - using original animations
       fallbackImage: '/assets/images/space-fallback.jpg'
     },
     { 
@@ -63,7 +63,7 @@ export const AppProvider = ({ children }) => {
       emoji: '🐾', 
       color: 'from-green-500 to-emerald-500',
       description: 'Meet friendly animals in peaceful meadows and forests',
-      videoUrl: '/assets/videos/animal-friends.mp4',
+      videoUrl: null, // Video disabled - using original animations
       fallbackImage: '/assets/images/animals-fallback.jpg'
     },
     { 

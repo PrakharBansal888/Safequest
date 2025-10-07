@@ -1,15 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ChevronLeft, ChevronRight, Star, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import VideoBackground from './VideoBackground';
-import { getVideoConfig, preloadVideos, getAllVideoUrls } from '../config/videoConfig';
 
 // Enhanced Animated Interest Components
 const SpaceAdventureAnimation = ({ isActive }) => (
   <div className={`absolute inset-0 overflow-hidden ${isActive ? 'animate-fade-in' : 'opacity-0'}`}>
     <div className="relative w-full h-full bg-gradient-to-b from-purple-900 via-blue-900 to-indigo-900">
       {/* Nebula effects */}
-      <div className="absolute inset-0 bg-gradient-radial from-purple-600/20 via-transparent to-transparent animate-pulse-glow"></div>
+      <div className="absolute inset-0 bg-gradient-radial from-purple-600/20 via-transparento-transparent animate-pulse-glow"></div>
       <div className="absolute top-1/4 right-1/3 w-40 h-40 bg-gradient-radial from-pink-500/10 via-transparent to-transparent rounded-full animate-float"></div>
       
       {/* Enhanced animated stars field */}
@@ -637,38 +635,10 @@ const InterestSelector = ({ interests, selectedInterests, handleInterestToggle, 
   };
 
   const currentInterest = interests[currentIndex];
-  // Don't show animation for Space Adventure if video is available
-  const hasSpaceVideo = currentInterest.id === 'space' && currentInterest.videoUrl;
-  const AnimationComponent = hasSpaceVideo ? null : animationComponents[currentInterest.id];
+  // Use original animations for all topics
+  const AnimationComponent = animationComponents[currentInterest.id];
 
-  // Preload videos for better performance on component mount
-  useEffect(() => {
-    const videoUrls = interests.map(interest => interest.videoUrl).filter(Boolean);
-    preloadVideos(videoUrls);
-  }, [interests]);
 
-  // Handle video state changes
-  const handleVideoLoad = () => {
-    console.log(`Video loaded successfully for: ${currentInterest.name}`);
-    setVideoLoading(false);
-    setVideoError(false);
-  };
-
-  const handleVideoError = (error) => {
-    console.warn(`Video failed for interest: ${currentInterest.name}`, error);
-    console.log(`Video URL attempted: ${currentInterest.videoUrl}`);
-    setVideoLoading(false);
-    setVideoError(true);
-  };
-
-  // Reset video state when interest changes
-  useEffect(() => {
-    console.log(`Interest changed to: ${currentInterest.name} (${currentInterest.id})`);
-    console.log(`Video URL: ${currentInterest.videoUrl}`);
-    console.log(`Has Space Video: ${hasSpaceVideo}`);
-    setVideoLoading(true);
-    setVideoError(false);
-  }, [currentIndex, currentInterest, hasSpaceVideo]);
 
   useEffect(() => {
     const handleKeyPress = (e) => {
@@ -682,22 +652,9 @@ const InterestSelector = ({ interests, selectedInterests, handleInterestToggle, 
 
   return (
     <div className="fixed inset-0 top-16 bg-background overflow-hidden z-30">
-      {/* Background video using modular component - Only for Space Adventure */}
-      <VideoBackground
-        videoSrc={currentInterest.videoUrl}
-        fallbackImageSrc={currentInterest.fallbackImage || currentInterest.image}
-        theme={currentInterest.id}
-        enableVideoForTheme="space" // Only show video for Space Adventure topic
-        onVideoLoad={handleVideoLoad}
-        onVideoError={handleVideoError}
-        className="absolute inset-0 w-full h-full object-cover pointer-events-none z-10"
-        aria-hidden="true"
-      />
 
-      {/* Subtle overlay for Space Adventure video to enhance text readability */}
-      {currentInterest.id === 'space' && (
-        <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-black/20 z-15 pointer-events-none" />
-      )}
+
+
 
       {/* Full-screen immersive animation area (on top of video) */}
       <div className="absolute inset-0 z-20">
